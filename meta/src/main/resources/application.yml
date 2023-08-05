@@ -1,0 +1,13 @@
+swagger:
+  config:
+    base-package: com.wbu.controller
+
+meta:
+  chunk-size: 16000000
+  chunk-instance-count: 1 #分片数量
+
+##设置mongodb连接的数据库
+spring:
+  data:
+    mongodb:
+      uri: mongodb://localhost:27017/meta

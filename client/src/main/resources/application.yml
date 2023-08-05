@@ -1,0 +1,22 @@
+server:
+  port: 8002
+
+swagger:
+  config:
+    base-package: com.wbu.controller
+
+client:
+  meta-server-port: 8080
+  meta-server-host: http://127.0.0.1
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 1GB
+      max-request-size: 1GB
+discovery:
+  service-id: chunk-client
+  server-host: http://127.0.0.1
+  server-port: 8080
+  schema: http
+

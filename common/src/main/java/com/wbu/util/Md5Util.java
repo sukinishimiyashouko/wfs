@@ -65,31 +65,6 @@ public class Md5Util {
         } catch (Exception e) {
             throw new RuntimeException("md5 计算失败");
         }
-//        int size = (int) file.getSize();
-//        InputStream inputStream = null;
-//        try{
-//            inputStream = file.getInputStream();
-//            MessageDigest digest = MessageDigest.getInstance("MD5");
-//            byte[] buffer = new byte[1024];
-//            int byteCount;
-//            while ((byteCount=inputStream.read(buffer))!=-1){
-//                digest.update(buffer,0,byteCount);
-//            }
-//            StringBuilder builder = new StringBuilder();
-//            byte[] bytes = digest.digest();
-//            for (byte b : bytes) {
-//                builder.append(Integer.toString((b&0xff)+0x100,16).substring(1));
-//            }
-//            return builder.toString();
-//        }catch (Exception e){
-//            throw new RuntimeException("md5 计算失败");
-//        }finally {
-//            try {
-//                inputStream.close();
-//            } catch (IOException e) {
-//                throw new RuntimeException(e);
-//            }
-//        }
     }
 
 }

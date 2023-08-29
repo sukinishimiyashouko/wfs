@@ -5,6 +5,8 @@ import com.wbu.DO.FileChunkMeta;
 import com.wbu.DO.MetaFile;
 import com.wbu.DTO.CompleteChunkFileDTO;
 import com.wbu.DTO.FileMeta;
+import com.wbu.VO.BucketVO;
+import com.wbu.VO.FileVO;
 import com.wbu.config.MetaConfig;
 import com.wbu.error.EnumMetaException;
 import com.wbu.errors.BusinessException;
@@ -15,6 +17,8 @@ import com.wbu.utils.FileNameGenerator;
 import com.wbu.utils.ServerSelector;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import javax.servlet.http.HttpServletRequest;
@@ -36,7 +40,12 @@ public class MetaServiceImpl implements MetaService {
     private final DiscoveryService discoveryService;
     private final ServerSelector serverSelector;
 
-    public MetaServiceImpl(FileNameGenerator fileNameGenerator, HttpServletRequest request, MetaConfig metaConfig, MongoTemplate mongoTemplate, DiscoveryService discoveryService, ServerSelector serverSelector) {
+    public MetaServiceImpl(FileNameGenerator fileNameGenerator,
+                           HttpServletRequest request,
+                           MetaConfig metaConfig,
+                           MongoTemplate mongoTemplate,
+                           DiscoveryService discoveryService,
+                           ServerSelector serverSelector) {
         this.fileNameGenerator = fileNameGenerator;
         this.request = request;
         this.metaConfig = metaConfig;
@@ -77,6 +86,7 @@ public class MetaServiceImpl implements MetaService {
                 .setFileSize(fileSize)
                 .setBucketName(bucketName)
                 .setTotalChunk(totalChunk)
+                .setCompleted(false)
                 .setChunks(chunks);
         mongoTemplate.insert(metaFile);
         return metaFile;
@@ -141,7 +151,7 @@ public class MetaServiceImpl implements MetaService {
 
     /**
      * 分片上传完成
-     * @param completeChunkFileDTO
+     * @param
      */
     @Override
     public void completeChunk(CompleteChunkFileDTO completeChunkFileDTO) {
@@ -155,7 +165,7 @@ public class MetaServiceImpl implements MetaService {
             throw new BusinessException(EnumMetaException.META_FILE_NOT_FOUND);
         }
 
-//        AtomicBoolean completed = new AtomicBoolean(true);
+        AtomicBoolean completed = new AtomicBoolean(true);
         //如果找到了则进行遍历
         metaFile.getChunks().forEach(c->{
             if (c.getChunkNo().equals(completeChunkFileDTO.getChunkNo())
@@ -164,10 +174,11 @@ public class MetaServiceImpl implements MetaService {
                 c.setChunkMd5(completeChunkFileDTO.getMd5());
                 c.setIsCompleted(true);
             }
-//            if (!c.getIsCompleted()){
-//                completed.set(false);
-//            }
+            if (!c.getIsCompleted()){
+                completed.set(false);
+            }
         });
+        metaFile.setCompleted(completed.get());
         mongoTemplate.save(metaFile);
     }
 
@@ -258,5 +269,32 @@ public class MetaServiceImpl implements MetaService {
                 .collect(Collectors.toList());
     }
 
+    @Override
+    public List<BucketVO> files() {
+        List<MetaFile> allFilesMeta = mongoTemplate.findAll(MetaFile.class);
 
+        Map<String, List<MetaFile>> bucketMap = allFilesMeta.stream()
+                .collect(Collectors.groupingBy(MetaFile::getBucketName));
+
+        return bucketMap.entrySet().stream().map(entry -> {
+            List<FileVO> fileVOList = entry.getValue()
+                    .stream()
+                    .filter(MetaFile::getCompleted)
+                    .map(metaFile -> new FileVO()
+                            .setFileName(metaFile.getFileName())
+                            .setExtension(metaFile.getExtension())
+                            .setBucketName(metaFile.getBucketName())
+                            .setFileSize(metaFile.getFileSize())
+                    ).toList();
+            return new BucketVO().setBucketName(entry.getKey())
+                    .setFiles(fileVOList);
+        }).toList();
+    }
+
+    @Override
+    public void delete(String bucketName, String fileName) {
+        Query query = new Query();
+        query.addCriteria(Criteria.where("fileName").is(fileName));
+        mongoTemplate.remove(query, MetaFile.class);
+    }
 }

@@ -4,6 +4,7 @@ import com.wbu.DO.FileChunkMeta;
 import com.wbu.DO.MetaFile;
 import com.wbu.DTO.CompleteChunkFileDTO;
 import com.wbu.DTO.FileMeta;
+import com.wbu.VO.BucketVO;
 
 import java.util.List;
 
@@ -19,4 +20,8 @@ public interface MetaService {
     MetaFile meta(String bucketName, String fileName);
 
     List<FileChunkMeta> chunkInfo(String bucketName, String fileName, Integer chunkNo);
+
+    List<BucketVO> files();
+
+    void delete(String bucketName, String fileName);
 }

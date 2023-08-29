@@ -1,8 +1,8 @@
 package com.wbu.DO;
 
-import io.github.classgraph.json.Id;
 import lombok.Data;
 import lombok.experimental.Accessors;
+import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.List;
@@ -26,6 +26,7 @@ public class MetaFile {
     private String bucketName;
     //分片总数
     private Integer totalChunk;
+    private Boolean completed;
     //文件总分片
     private List<FileChunkMeta> chunks;
 }

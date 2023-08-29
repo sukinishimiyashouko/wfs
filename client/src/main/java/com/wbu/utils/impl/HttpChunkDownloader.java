@@ -40,7 +40,7 @@ public class HttpChunkDownloader implements ChunkDownloader {
         params.put("chunkNo",chunkMeta.getChunkNo());
         params.put("bucketName",chunkMeta.getBucketName());
         Object response = restTemplate.getForObject(url, Object.class, params);
-        CommonResponse<byte[]> commonResponse = objectMapper.convertValue(response, new TypeReference<CommonResponse<byte[]>>() {
+        CommonResponse<byte[]> commonResponse = objectMapper.convertValue(response, new TypeReference<>() {
         });
         return commonResponse.getData();
     }

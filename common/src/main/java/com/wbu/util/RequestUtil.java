@@ -84,7 +84,6 @@ public class RequestUtil {
                             // ~~~~~~~~~~~~~绝大部分情况下都会在此处返回你的ip地址值~~~~~~~~~~~~~
                             return inetAddr;
                         }
-
                         // 若不是site-local地址 那就记录下该地址当作候选
                         if (candidateAddress == null) {
                             candidateAddress = inetAddr;

@@ -7,6 +7,8 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
+import javax.validation.constraints.NotBlank;
+import javax.validation.constraints.NotNull;
 
 /**
  * @auther 11852
@@ -30,10 +32,10 @@ public class FileController {
     }
 
     @GetMapping("/read")
-    public CommonResponse<?> read(@RequestParam("fileName")String fileName,
-                                  @RequestParam("extension")String extension,
-                                  @RequestParam("chunkNo")Integer chunkNo,
-                                  @RequestParam("bucketName")String bucketName){
+    public CommonResponse<?> read(@RequestParam("fileName") @NotBlank(message = "文件名不得为空") String fileName,
+                                  @RequestParam("extension") String extension,
+                                  @RequestParam("chunkNo") @NotNull(message = "文件分片序号不得为空") Integer chunkNo,
+                                  @RequestParam("bucketName") @NotBlank(message = "存储桶名不得为空") String bucketName){
         byte[] content=fileService.read(fileName,extension,chunkNo,bucketName);
         return CommonResponse.success(content);
     }

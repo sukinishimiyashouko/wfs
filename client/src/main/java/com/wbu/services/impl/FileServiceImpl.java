@@ -7,6 +7,7 @@ import com.wbu.DO.MetaFile;
 import com.wbu.DTO.CompleteChunkFileDTO;
 import com.wbu.DTO.FileChunkDTO;
 import com.wbu.DTO.FileMeta;
+import com.wbu.VO.BucketVO;
 import com.wbu.VO.FileChunkMetaVO;
 import com.wbu.VO.MetaFileVo;
 import com.wbu.config.ClientConfig;
@@ -43,8 +44,13 @@ public class FileServiceImpl implements FileService {
     private final ObjectMapper objectMapper;
     private final ChunkAddressStrategy chunkAddressStrategy;
     private final ChunkDownloaderStrategy chunkDownloaderStrategy;
+    private static ThreadLocal<CompleteChunkFileDTO> threadLocal = ThreadLocal.withInitial(CompleteChunkFileDTO::new);
 
-    public FileServiceImpl(RestTemplate restTemplate, ClientConfig clientConfig, ObjectMapper objectMapper, ChunkAddressStrategy chunkAddressStrategy, ChunkDownloaderStrategy chunkDownloaderStrategy) {
+    public FileServiceImpl(RestTemplate restTemplate,
+                           ClientConfig clientConfig,
+                           ObjectMapper objectMapper,
+                           ChunkAddressStrategy chunkAddressStrategy,
+                           ChunkDownloaderStrategy chunkDownloaderStrategy) {
         this.restTemplate = restTemplate;
         this.clientConfig = clientConfig;
         this.objectMapper = objectMapper;
@@ -60,7 +66,7 @@ public class FileServiceImpl implements FileService {
         if (Objects.nonNull(originalFilename)){
             int doIndex = originalFilename.lastIndexOf(".");
             if (doIndex!=-1){
-                extension=originalFilename.substring(doIndex);
+                extension=originalFilename.substring(doIndex+1);
                 log.info(extension);
             }
         }
@@ -77,7 +83,7 @@ public class FileServiceImpl implements FileService {
          * 类型转换
          */
         CommonResponse<MetaFile> commonResponse = objectMapper
-                .convertValue(response, new TypeReference<CommonResponse<MetaFile>>() {
+                .convertValue(response, new TypeReference<>() {
                 });
 
         if (Objects.isNull(commonResponse)){
@@ -125,55 +131,62 @@ public class FileServiceImpl implements FileService {
             }
 
             byte[] finalBuffer = buffer;
-            tasks[i] = CompletableFuture.runAsync(() -> {
-                if (chunk.getIsCompleted()) {
-                    return;
-                }
+            try {
+                tasks[i] = CompletableFuture.runAsync(() -> {
+                    if (chunk.getIsCompleted()) {
+                        return;
+                    }
 
-                String md5 = Md5Util.getMd5(finalBuffer);
+                    String md5 = Md5Util.getMd5(finalBuffer);
 
-                fileChunkDTO.setFileName(chunk.getFileName())
-                        .setExtension(chunk.getExtension())
-                        .setChunkNo(chunk.getChunkNo())
-                        .setChunkSize(chunkSize)
-                        .setBucketName(chunk.getBucketName())
-                        .setBytes(finalBuffer);
+                    fileChunkDTO.setFileName(chunk.getFileName())
+                            .setExtension(chunk.getExtension())
+                            .setChunkNo(chunk.getChunkNo())
+                            .setChunkSize(chunkSize)
+                            .setBucketName(chunk.getBucketName())
+                            .setBytes(finalBuffer);
 
-                String address = chunkAddressStrategy.get(chunk);
-                Object response = restTemplate.postForObject(address + "/file/write", fileChunkDTO, Object.class);
-                log.info("response:{}",response);
-                if (Objects.isNull(response)) {
-                    throw new BusinessException("第" + chunk.getChunkNo() + "分片上传失败", EnumClientException.FAILED_TO_UPLOAD_CHUNK_FILE);
-                }
+                    String address = chunkAddressStrategy.get(chunk);
+                    Object response = restTemplate.postForObject(address + "/file/write", fileChunkDTO, Object.class);
+                    log.info("response:{}",response);
+                    if (Objects.isNull(response)) {
+                        throw new BusinessException("第" + chunk.getChunkNo() + "分片上传失败", EnumClientException.FAILED_TO_UPLOAD_CHUNK_FILE);
+                    }
 
-                CommonResponse<String> md5Response = objectMapper.convertValue(response, new TypeReference<CommonResponse<String>>() {
+                    CommonResponse<String> md5Response = objectMapper.convertValue(response, new TypeReference<>() {
+                    });
+
+                    if (!md5Response.getData().equals(md5)) {
+                        log.info("md5异常");
+                        throw new BusinessException(EnumClientException.CHUNK_FILE_INCOMPLETE);
+                    }
+                    CompleteChunkFileDTO completeChunkFileDTO = threadLocal.get()
+                            .setFileName(chunk.getFileName())
+                            .setChunkNo(chunk.getChunkNo())
+                            .setAddress(chunk.getAddress())
+                            .setSchema(chunk.getSchema())
+                            .setMd5(md5);
+                    threadLocal.set(completeChunkFileDTO);
+
+                    log.info("I'm here");
+                    Object resp = restTemplate.postForObject(
+                            clientConfig.getMetaServerAddress() + "/meta/chunk/complete",
+                            threadLocal.get(),
+                            Object.class
+                    );
+                    if (Objects.isNull(resp)) {
+                        throw new BusinessException(EnumClientException.FAILED_TO_UPDATE_CHUNK_FILE_COMPLETE_STATUS);
+                    }
+                    log.info("更新分片状态:{}", resp);
+                }).whenComplete((o, throwable) -> {
+                    if (Objects.nonNull(throwable)) {
+                        throw new RuntimeException(MessageFormat.format("第{}分片上传失败", chunk.getChunkNo()));
+                    }
                 });
+            }finally {
+                threadLocal.remove();
+            }
 
-                if (!md5Response.getData().equals(md5)) {
-                    throw new BusinessException(EnumClientException.CHUNK_FILE_INCOMPLETE);
-                }
-
-                CompleteChunkFileDTO completeChunkFileDTO = new CompleteChunkFileDTO();
-                completeChunkFileDTO.setFileName(chunk.getFileName())
-                        .setChunkNo(chunk.getChunkNo())
-                        .setAddress(chunk.getAddress())
-                        .setSchema(chunk.getSchema())
-                        .setMd5(md5);
-
-                Object resp = restTemplate.postForObject(
-                        clientConfig.getMetaServerAddress() + "/meta/chunk/complete",
-                        completeChunkFileDTO,
-                        Object.class
-                );
-                if (Objects.isNull(resp)) {
-                    throw new BusinessException(EnumClientException.FAILED_TO_UPDATE_CHUNK_FILE_COMPLETE_STATUS);
-                }
-                log.info("更新分片状态:{}", resp);
-            }).whenComplete((o, throwable) -> {
-                if (Objects.nonNull(throwable)) {
-                    throw new RuntimeException(MessageFormat.format("第{}分片上传失败", chunk.getChunkNo()));
-                }
-            });
         }
         CompletableFuture<Void> allOf = CompletableFuture.allOf(tasks);
         //如果任务失败，应当快速失败
@@ -196,8 +209,8 @@ public class FileServiceImpl implements FileService {
      */
     @Override
     public MetaFile getMeta(String bucketName, String fileName) {
-        if (fileName.lastIndexOf(".")!=-1){
-            fileName=fileName.substring(fileName.indexOf("."));
+        if (fileName.contains(".")){
+            fileName=fileName.split("\\.")[0];
         }
         String url = clientConfig.getMetaServerAddress() + "/meta/info?bucketName={bucketName}&fileName={fileName}";
         //保存参数
@@ -206,7 +219,7 @@ public class FileServiceImpl implements FileService {
         params.put("fileName",fileName);
 
         Object response = restTemplate.getForObject(url, Object.class, params);
-        CommonResponse<MetaFile> commonResponse = objectMapper.convertValue(response, new TypeReference<CommonResponse<MetaFile>>() {
+        CommonResponse<MetaFile> commonResponse = objectMapper.convertValue(response, new TypeReference<>() {
         });
         return commonResponse.getData();
     }
@@ -219,16 +232,32 @@ public class FileServiceImpl implements FileService {
     @Override
     public MetaFileVo meta(FileMeta fileMeta) {
         String url = clientConfig.getMetaServerAddress()+"/meta/generate";
-        Object response = restTemplate.postForObject(
-                url,
-                fileMeta,
-                Object.class
-        );
-        CommonResponse<MetaFile> commonResponse = objectMapper.convertValue(response,
-                new TypeReference<>() {
+        Object response = restTemplate.postForObject(url, fileMeta, Object.class);
+        CommonResponse<MetaFile> commonResponse = objectMapper.convertValue(response, new TypeReference<>() {
         });
         MetaFile metaFile = commonResponse.getData();
         return buildMetaFileVO(metaFile);
+    }
+    private MetaFileVo buildMetaFileVO(MetaFile metaFile){
+        MetaFileVo metaFileVo = new MetaFileVo();
+        //获取分片
+        List<FileChunkMeta> originChunks = metaFile.getChunks();
+
+        List<FileChunkMetaVO> fileChunkMetaVOS = new ArrayList<>();
+        for (FileChunkMeta originChunk : originChunks) {
+            FileChunkMetaVO fileChunkMetaVO = new FileChunkMetaVO();
+            fileChunkMetaVO.setFileName(originChunk.getFileName())
+                    .setChunkNo(originChunk.getChunkNo())
+                    .setChunkStart(originChunk.getChunkStart().intValue())
+                    .setChunkSize(originChunk.getChunkSize())
+                    .setCompleted(originChunk.getIsCompleted());
+            fileChunkMetaVOS.add(fileChunkMetaVO);
+        }
+        //筛选
+        fileChunkMetaVOS = fileChunkMetaVOS.stream().distinct().collect(Collectors.toList());
+        return metaFileVo.setChunks(fileChunkMetaVOS)
+                .setFileName(metaFileVo.getFileName())
+                .setBucketName(metaFileVo.getBucketName());
     }
 
     @Override
@@ -237,8 +266,18 @@ public class FileServiceImpl implements FileService {
                               String md5,
                               Integer chunkNo,
                               MultipartFile file) {
-        MetaFile metaFile = getMeta(bucketName, fileName);
-        List<FileChunkMeta> chunks = metaFile.getChunks();
+//        MetaFile metaFile = getMeta(bucketName, fileName);
+//        List<FileChunkMeta> chunks = metaFile.getChunks();
+        String metaServerAddress = clientConfig.getMetaServerAddress();
+        String url = metaServerAddress + "/meta/chunk/info?bucketName={bucketName}&fileName={fileName}&chunkNo={chunkNo}";
+        Map<String, Object> map = new HashMap<>();
+        map.put("fileName",fileName);
+        map.put("bucketName",bucketName);
+        map.put("chunkNo",chunkNo);
+        Object resp = restTemplate.getForObject(url,Object.class,map);
+        CommonResponse<List<FileChunkMeta>> chunkInfoResponse = objectMapper.convertValue(resp, new TypeReference<>() {
+        });
+        List<FileChunkMeta> chunks = chunkInfoResponse.getData();
         String realMd5 = Md5Util.getMd5(file);
         if (!Objects.equals(md5,realMd5)){
             throw new BusinessException(EnumClientException.CHUNK_FILE_INCOMPLETE);
@@ -271,7 +310,6 @@ public class FileServiceImpl implements FileService {
                 if (!Objects.equals(serverMd5,realMd5)){
                     throw new RuntimeException(MessageFormat.format("第{}分片不完整",c.getChunkNo()));
                 }
-                String metaServerAddress = clientConfig.getMetaServerAddress();
 
                 CompleteChunkFileDTO completeChunkFileDTO = new CompleteChunkFileDTO();
                 completeChunkFileDTO.setFileName(c.getFileName())
@@ -280,11 +318,11 @@ public class FileServiceImpl implements FileService {
                         .setMd5(md5)
                         .setAddress(c.getAddress());
 
-                Object resp = restTemplate.postForObject(metaServerAddress + "/meta/chunk/complete",
+                Object completeResp = restTemplate.postForObject(metaServerAddress + "/meta/chunk/complete",
                         completeChunkFileDTO,
                         Object.class
                 );
-                if (Objects.isNull(resp)){
+                if (Objects.isNull(completeResp)){
                     throw new RuntimeException(MessageFormat.format("第{}分片更新失败",c.getChunkNo()));
                 }
 
@@ -297,23 +335,20 @@ public class FileServiceImpl implements FileService {
         return md5;
     }
 
-    private MetaFileVo buildMetaFileVO(MetaFile metaFile){
-        MetaFileVo metaFileVo = new MetaFileVo();
-        List<FileChunkMeta> originChunks = metaFile.getChunks();
-        List<FileChunkMetaVO> fileChunkMetaVOS = new ArrayList<>();
-        for (FileChunkMeta originChunk : originChunks) {
-            FileChunkMetaVO fileChunkMetaVO = new FileChunkMetaVO();
-            fileChunkMetaVO.setFileName(originChunk.getFileName())
-                    .setChunkNo(originChunk.getChunkNo())
-                    .setChunkStart(originChunk.getChunkStart().intValue())
-                    .setChunkSize(originChunk.getChunkSize())
-                    .setCompleted(originChunk.getIsCompleted());
-            fileChunkMetaVOS.add(fileChunkMetaVO);
-        }
-        fileChunkMetaVOS = fileChunkMetaVOS.stream().distinct().collect(Collectors.toList());
-        return metaFileVo.setChunks(fileChunkMetaVOS)
-                .setFileName(metaFileVo.getFileName())
-                .setBucketName(metaFileVo.getBucketName());
+    @Override
+    public List<BucketVO> files() {
+        String metaServerAddress = clientConfig.getMetaServerAddress();
+        Object response = restTemplate.getForObject(metaServerAddress + "/meta/files", Object.class);
+        CommonResponse<List<BucketVO>> commonResponse = objectMapper.convertValue(response, new TypeReference<CommonResponse<List<BucketVO>>>() {
+        });
+        return commonResponse.getData();
+    }
+
+    @Override
+    public void delete(String bucketName, String fileName) {
+        String metaServerAddress = clientConfig.getMetaServerAddress();
+        String url = "%s/meta/%s/%s".formatted(metaServerAddress,bucketName,fileName);
+        restTemplate.delete(url);
     }
 
 

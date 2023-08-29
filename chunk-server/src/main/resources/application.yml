@@ -13,4 +13,4 @@ swagger:
     base-package: com.wbu.controller
 
 chunk:
-  work-space: D:/MyDataArea/wfs/
+  work-space: D:/MyDataArea/wfs

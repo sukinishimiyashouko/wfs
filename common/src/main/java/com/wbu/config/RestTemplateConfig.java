@@ -52,9 +52,9 @@ public class RestTemplateConfig {
 
         SimpleClientHttpRequestFactory simpleClientHttpRequestFactory = new SimpleClientHttpRequestFactory();
 
-        simpleClientHttpRequestFactory.setConnectTimeout(15000);
+        simpleClientHttpRequestFactory.setConnectTimeout(150000);
 
-        simpleClientHttpRequestFactory.setReadTimeout(5000);
+        simpleClientHttpRequestFactory.setReadTimeout(15000);
         return simpleClientHttpRequestFactory;
     }
 

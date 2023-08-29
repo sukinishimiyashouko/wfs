@@ -33,7 +33,7 @@ public class RestTemplateLoggingInterceptor implements ClientHttpRequestIntercep
         ResponseInfo responseInfo = extractResponse(response);
         log.info("call url: {},method: {},request: {},response: {}",
                 requestInfo.getUrl(),
-                requestInfo.getMethod().toString(),
+                requestInfo.getMethod(),
                 requestInfo,
                 responseInfo);
         return response.getStatusCode().is5xxServerError() ? null : response;

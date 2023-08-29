@@ -23,7 +23,6 @@ public class GlobalExceptionHandler {
     /**
      * 捕获Controller中抛出的不同类型的异常，从而达到异常全局处理的目的
      */
-
     @ExceptionHandler(BusinessException.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     @ResponseBody

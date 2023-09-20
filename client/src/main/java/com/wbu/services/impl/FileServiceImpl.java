@@ -44,7 +44,7 @@ public class FileServiceImpl implements FileService {
     private final ObjectMapper objectMapper;
     private final ChunkAddressStrategy chunkAddressStrategy;
     private final ChunkDownloaderStrategy chunkDownloaderStrategy;
-    private static ThreadLocal<CompleteChunkFileDTO> threadLocal = ThreadLocal.withInitial(CompleteChunkFileDTO::new);
+//    public static ThreadLocal<CompleteChunkFileDTO> threadLocal = ThreadLocal.withInitial(CompleteChunkFileDTO::new);
 
     public FileServiceImpl(RestTemplate restTemplate,
                            ClientConfig clientConfig,
@@ -131,61 +131,57 @@ public class FileServiceImpl implements FileService {
             }
 
             byte[] finalBuffer = buffer;
-            try {
-                tasks[i] = CompletableFuture.runAsync(() -> {
-                    if (chunk.getIsCompleted()) {
-                        return;
-                    }
 
-                    String md5 = Md5Util.getMd5(finalBuffer);
+            tasks[i] = CompletableFuture.runAsync(() -> {
+                if (chunk.getIsCompleted()) {
+                    return;
+                }
 
-                    fileChunkDTO.setFileName(chunk.getFileName())
-                            .setExtension(chunk.getExtension())
-                            .setChunkNo(chunk.getChunkNo())
-                            .setChunkSize(chunkSize)
-                            .setBucketName(chunk.getBucketName())
-                            .setBytes(finalBuffer);
+                String md5 = Md5Util.getMd5(finalBuffer);
 
-                    String address = chunkAddressStrategy.get(chunk);
-                    Object response = restTemplate.postForObject(address + "/file/write", fileChunkDTO, Object.class);
-                    log.info("response:{}",response);
-                    if (Objects.isNull(response)) {
-                        throw new BusinessException("第" + chunk.getChunkNo() + "分片上传失败", EnumClientException.FAILED_TO_UPLOAD_CHUNK_FILE);
-                    }
+                fileChunkDTO.setFileName(chunk.getFileName())
+                        .setExtension(chunk.getExtension())
+                        .setChunkNo(chunk.getChunkNo())
+                        .setChunkSize(chunkSize)
+                        .setBucketName(chunk.getBucketName())
+                        .setBytes(finalBuffer);
 
-                    CommonResponse<String> md5Response = objectMapper.convertValue(response, new TypeReference<>() {
-                    });
+                String address = chunkAddressStrategy.get(chunk);
+                Object response = restTemplate.postForObject(address + "/file/write", fileChunkDTO, Object.class);
+                log.info("response:{}",response);
+                if (Objects.isNull(response)) {
+                    throw new BusinessException("第" + chunk.getChunkNo() + "分片上传失败", EnumClientException.FAILED_TO_UPLOAD_CHUNK_FILE);
+                }
 
-                    if (!md5Response.getData().equals(md5)) {
-                        log.info("md5异常");
-                        throw new BusinessException(EnumClientException.CHUNK_FILE_INCOMPLETE);
-                    }
-                    CompleteChunkFileDTO completeChunkFileDTO = threadLocal.get()
-                            .setFileName(chunk.getFileName())
-                            .setChunkNo(chunk.getChunkNo())
-                            .setAddress(chunk.getAddress())
-                            .setSchema(chunk.getSchema())
-                            .setMd5(md5);
-                    threadLocal.set(completeChunkFileDTO);
-
-                    log.info("I'm here");
-                    Object resp = restTemplate.postForObject(
-                            clientConfig.getMetaServerAddress() + "/meta/chunk/complete",
-                            threadLocal.get(),
-                            Object.class
-                    );
-                    if (Objects.isNull(resp)) {
-                        throw new BusinessException(EnumClientException.FAILED_TO_UPDATE_CHUNK_FILE_COMPLETE_STATUS);
-                    }
-                    log.info("更新分片状态:{}", resp);
-                }).whenComplete((o, throwable) -> {
-                    if (Objects.nonNull(throwable)) {
-                        throw new RuntimeException(MessageFormat.format("第{}分片上传失败", chunk.getChunkNo()));
-                    }
+                CommonResponse<String> md5Response = objectMapper.convertValue(response, new TypeReference<>() {
                 });
-            }finally {
-                threadLocal.remove();
-            }
+
+                if (!md5Response.getData().equals(md5)) {
+                    log.info("md5异常");
+                    throw new BusinessException(EnumClientException.CHUNK_FILE_INCOMPLETE);
+                }
+                CompleteChunkFileDTO completeChunkFileDTO = new CompleteChunkFileDTO();
+                completeChunkFileDTO.setFileName(chunk.getFileName())
+                        .setChunkNo(chunk.getChunkNo())
+                        .setAddress(chunk.getAddress())
+                        .setSchema(chunk.getSchema())
+                        .setMd5(md5);
+
+                Object resp = restTemplate.postForObject(
+                        clientConfig.getMetaServerAddress() + "/meta/chunk/complete",
+                        completeChunkFileDTO,
+                        Object.class
+                );
+                if (Objects.isNull(resp)) {
+                    throw new BusinessException(EnumClientException.FAILED_TO_UPDATE_CHUNK_FILE_COMPLETE_STATUS);
+                }
+                log.info("更新分片状态:{}", resp);
+            }).whenComplete((o, throwable) -> {
+                if (Objects.nonNull(throwable)) {
+                    throw new RuntimeException(MessageFormat.format("第{}分片上传失败", chunk.getChunkNo()));
+                }
+            });
+
 
         }
         CompletableFuture<Void> allOf = CompletableFuture.allOf(tasks);

@@ -24,6 +24,8 @@ import org.springframework.stereotype.Service;
 import javax.servlet.http.HttpServletRequest;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 /**
@@ -39,6 +41,7 @@ public class MetaServiceImpl implements MetaService {
     private final MongoTemplate mongoTemplate;
     private final DiscoveryService discoveryService;
     private final ServerSelector serverSelector;
+    private final ReentrantReadWriteLock reentrantReadWriteLock = new ReentrantReadWriteLock();
 
     public MetaServiceImpl(FileNameGenerator fileNameGenerator,
                            HttpServletRequest request,
@@ -154,17 +157,16 @@ public class MetaServiceImpl implements MetaService {
      * @param
      */
     @Override
-    public void completeChunk(CompleteChunkFileDTO completeChunkFileDTO) {
+    public synchronized void completeChunk(CompleteChunkFileDTO completeChunkFileDTO) {
         String fileName = completeChunkFileDTO.getFileName();
         /**
          * 上传成功之后从MongoDB中查找一下
          */
         MetaFile metaFile = mongoTemplate.findById(fileName, MetaFile.class);
-
+//        AtomicReference<MetaFile> metaFileAtomicReference = new AtomicReference<>();
         if(Objects.isNull(metaFile)){
             throw new BusinessException(EnumMetaException.META_FILE_NOT_FOUND);
         }
-
         AtomicBoolean completed = new AtomicBoolean(true);
         //如果找到了则进行遍历
         metaFile.getChunks().forEach(c->{
@@ -178,7 +180,6 @@ public class MetaServiceImpl implements MetaService {
                 completed.set(false);
             }
         });
-        metaFile.setCompleted(completed.get());
         mongoTemplate.save(metaFile);
     }
 

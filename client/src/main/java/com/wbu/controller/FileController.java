@@ -28,6 +28,7 @@ import java.util.List;
 @Validated
 @RestController
 @RequestMapping("/")
+@CrossOrigin
 public class FileController {
 
     private final FileService fileService;

@@ -33,8 +33,6 @@ public class BusinessException extends RuntimeException implements IResponse {
     public int getCode() {
         return code;
     }
-
-
     @Override
     public String getMessage() {
         return message;

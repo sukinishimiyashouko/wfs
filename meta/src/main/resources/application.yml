@@ -4,7 +4,7 @@ swagger:
 
 meta:
   chunk-size: 16000000
-  chunk-instance-count: 1 #分片数量
+  chunk-instance-count: 2 #分片数量
 
 ##设置mongodb连接的数据库
 spring:

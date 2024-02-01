@@ -14,6 +14,7 @@
         <module>discovery</module>
         <module>chunk-server</module>
         <module>client</module>
+        <module>chunk-server2</module>
     </modules>
     <parent>
         <groupId>org.springframework.boot</groupId>

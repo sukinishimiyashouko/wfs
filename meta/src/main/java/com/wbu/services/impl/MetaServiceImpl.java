@@ -24,8 +24,8 @@ import org.springframework.stereotype.Service;
 import javax.servlet.http.HttpServletRequest;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+//import java.util.concurrent.atomic.AtomicReference;
+//import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 /**
@@ -41,7 +41,6 @@ public class MetaServiceImpl implements MetaService {
     private final MongoTemplate mongoTemplate;
     private final DiscoveryService discoveryService;
     private final ServerSelector serverSelector;
-    private final ReentrantReadWriteLock reentrantReadWriteLock = new ReentrantReadWriteLock();
 
     public MetaServiceImpl(FileNameGenerator fileNameGenerator,
                            HttpServletRequest request,
@@ -144,7 +143,6 @@ public class MetaServiceImpl implements MetaService {
                         .setAddress(address)
                         .setSchema(selectServer.getSchema())
                         .setWeight(metaConfig.getChunkInstanceMaxWeight());
-
                 chunks.add(fileChunkMeta);
             }
             start+=currentChunkSize;
@@ -167,7 +165,7 @@ public class MetaServiceImpl implements MetaService {
         if(Objects.isNull(metaFile)){
             throw new BusinessException(EnumMetaException.META_FILE_NOT_FOUND);
         }
-        AtomicBoolean completed = new AtomicBoolean(true);
+        AtomicBoolean atomicBoolean = new AtomicBoolean(true);
         //如果找到了则进行遍历
         metaFile.getChunks().forEach(c->{
             if (c.getChunkNo().equals(completeChunkFileDTO.getChunkNo())
@@ -176,10 +174,11 @@ public class MetaServiceImpl implements MetaService {
                 c.setChunkMd5(completeChunkFileDTO.getMd5());
                 c.setIsCompleted(true);
             }
-            if (!c.getIsCompleted()){
-                completed.set(false);
+            if(!c.getIsCompleted()){
+                atomicBoolean.set(false);
             }
         });
+        metaFile.setCompleted(atomicBoolean.get());
         mongoTemplate.save(metaFile);
     }
 
@@ -287,7 +286,8 @@ public class MetaServiceImpl implements MetaService {
                             .setBucketName(metaFile.getBucketName())
                             .setFileSize(metaFile.getFileSize())
                     ).toList();
-            return new BucketVO().setBucketName(entry.getKey())
+            return new BucketVO()
+                    .setBucketName(entry.getKey())
                     .setFiles(fileVOList);
         }).toList();
     }

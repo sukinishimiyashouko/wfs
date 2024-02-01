@@ -19,6 +19,7 @@ import com.wbu.util.Md5Util;
 import com.wbu.utils.ChunkAddressStrategy;
 import com.wbu.utils.ChunkDownloaderStrategy;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
@@ -93,7 +94,6 @@ public class FileServiceImpl implements FileService {
         if (Objects.isNull(metaFile)){
             throw new BusinessException("meta file 为空",EnumClientException.FAILED_TO_GET_META_FILE);
         }
-
         try {
             uploadChunks(file,metaFile);
         } catch (Exception e) {
@@ -123,7 +123,7 @@ public class FileServiceImpl implements FileService {
             FileChunkMeta chunk = chunks.get(i);
             FileChunkDTO fileChunkDTO = new FileChunkDTO();
             Integer chunkSize = chunk.getChunkSize();
-            //读取分片的内容 因为“备份”的作用存在，所以相同序号的分片内容一样就不需要重复读
+            //读取分片的内容 因为“备份”的作用存在，所以相同序号的`分片`内容一样就不需要重复读
             if (chunk.getChunkNo() != preChunkNo) {
                 preChunkNo = chunk.getChunkNo();
                 buffer = new byte[chunkSize];
@@ -181,8 +181,6 @@ public class FileServiceImpl implements FileService {
                     throw new RuntimeException(MessageFormat.format("第{}分片上传失败", chunk.getChunkNo()));
                 }
             });
-
-
         }
         CompletableFuture<Void> allOf = CompletableFuture.allOf(tasks);
         //如果任务失败，应当快速失败
@@ -252,8 +250,8 @@ public class FileServiceImpl implements FileService {
         //筛选
         fileChunkMetaVOS = fileChunkMetaVOS.stream().distinct().collect(Collectors.toList());
         return metaFileVo.setChunks(fileChunkMetaVOS)
-                .setFileName(metaFileVo.getFileName())
-                .setBucketName(metaFileVo.getBucketName());
+                .setFileName(metaFile.getFileName())
+                .setBucketName(metaFile.getBucketName());
     }
 
     @Override
@@ -340,6 +338,11 @@ public class FileServiceImpl implements FileService {
         return commonResponse.getData();
     }
 
+    /**
+     * 物理删除
+     * @param bucketName
+     * @param fileName
+     */
     @Override
     public void delete(String bucketName, String fileName) {
         String metaServerAddress = clientConfig.getMetaServerAddress();

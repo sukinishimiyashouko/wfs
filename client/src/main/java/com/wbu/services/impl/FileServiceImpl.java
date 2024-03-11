@@ -19,7 +19,6 @@ import com.wbu.util.Md5Util;
 import com.wbu.utils.ChunkAddressStrategy;
 import com.wbu.utils.ChunkDownloaderStrategy;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
@@ -60,31 +59,32 @@ public class FileServiceImpl implements FileService {
     }
 
     @Override
-    public String upload(String bucketName, MultipartFile file) {
+    public String upload(String bucketName, String newFileName, MultipartFile file) {
         // 获取文件名
         String originalFilename = file.getOriginalFilename();
-        String extension="";
+        String extension = "";
         if (Objects.nonNull(originalFilename)){
             int doIndex = originalFilename.lastIndexOf(".");
             if (doIndex!=-1){
-                extension=originalFilename.substring(doIndex+1);
-                log.info(extension);
+                extension = originalFilename.substring(doIndex+1);
             }
         }
 
         FileMeta fileMeta = new FileMeta()
-                .setBucketName(bucketName)
+                .setNewFileName(newFileName)
+                .setFileSize(file.getSize())
                 .setExtension(extension)
-                .setFileSize(file.getSize());
+                .setBucketName(bucketName);
 
-        Object response = restTemplate.postForObject(clientConfig.getMetaServerAddress() + "/meta/generate",
+        Object response = restTemplate.postForObject(clientConfig.getMetaServerAddress()+"/meta/generate",
                 fileMeta, Object.class);
+
 
         /**
          * 类型转换
          */
-        CommonResponse<MetaFile> commonResponse = objectMapper
-                .convertValue(response, new TypeReference<>() {
+        CommonResponse<MetaFile> commonResponse = objectMapper.convertValue(response,
+                new TypeReference<>() {
                 });
 
         if (Objects.isNull(commonResponse)){
@@ -148,7 +148,6 @@ public class FileServiceImpl implements FileService {
 
                 String address = chunkAddressStrategy.get(chunk);
                 Object response = restTemplate.postForObject(address + "/file/write", fileChunkDTO, Object.class);
-                log.info("response:{}",response);
                 if (Objects.isNull(response)) {
                     throw new BusinessException("第" + chunk.getChunkNo() + "分片上传失败", EnumClientException.FAILED_TO_UPLOAD_CHUNK_FILE);
                 }
@@ -157,7 +156,6 @@ public class FileServiceImpl implements FileService {
                 });
 
                 if (!md5Response.getData().equals(md5)) {
-                    log.info("md5异常");
                     throw new BusinessException(EnumClientException.CHUNK_FILE_INCOMPLETE);
                 }
                 CompleteChunkFileDTO completeChunkFileDTO = new CompleteChunkFileDTO();
@@ -182,15 +180,28 @@ public class FileServiceImpl implements FileService {
                 }
             });
         }
+        /**
+         * 使用CompletableFuture.allOf()来等待所有任务完成
+         * 返回的CompletableFuture对象将在数组中的所有CompletableFuture对象都完成时完成，但它本身不会返回任何结果。
+         */
         CompletableFuture<Void> allOf = CompletableFuture.allOf(tasks);
         //如果任务失败，应当快速失败
         CompletableFuture<?> anyException = new CompletableFuture<>();
-        Arrays.stream(tasks).forEach(t -> {
-            t.exceptionally(throwable -> {
-                anyException.completeExceptionally(throwable);
+        /**
+         * 使用completeExceptionally方法可以在CompletableFuture中主动触发异常，
+         * 从而使得等待该CompletableFuture结果的线程能够感知到异常并进行相应的处理
+         */
+        Arrays.stream(tasks).forEach(t->{
+            t.exceptionally((e)->{
+                anyException.completeExceptionally(e);
                 return null;
             });
         });
+        /**
+         * 等待任意一个任务完成并获取其结果。
+         * 获取allOf,anyException处理最快的一个任务的结果
+         * get()抛出异常
+         */
         CompletableFuture.anyOf(allOf,anyException).get();
     }
 
@@ -208,7 +219,7 @@ public class FileServiceImpl implements FileService {
         }
         String url = clientConfig.getMetaServerAddress() + "/meta/info?bucketName={bucketName}&fileName={fileName}";
         //保存参数
-        HashMap<String, Object> params = new HashMap<>();
+        Map<String, Object> params = new HashMap<>();
         params.put("bucketName",bucketName);
         params.put("fileName",fileName);
 
@@ -276,7 +287,7 @@ public class FileServiceImpl implements FileService {
         if (!Objects.equals(md5,realMd5)){
             throw new BusinessException(EnumClientException.CHUNK_FILE_INCOMPLETE);
         }
-        chunks=chunks.stream().filter(c->c.getChunkNo().equals(chunkNo)).collect(Collectors.toList());
+//        chunks=chunks.stream().filter(c->c.getChunkNo().equals(chunkNo)).collect(Collectors.toList());
         chunks.forEach(c->{
             int chunkSize = c.getChunkSize();
             byte[] buffer = new byte[chunkSize];
@@ -319,12 +330,10 @@ public class FileServiceImpl implements FileService {
                 if (Objects.isNull(completeResp)){
                     throw new RuntimeException(MessageFormat.format("第{}分片更新失败",c.getChunkNo()));
                 }
-
             } catch (IOException e) {
                 log.info("第{}分片上传失败,原因是",c.getChunkNo(),e);
                 throw new BusinessException(EnumClientException.FAILED_TO_UPLOAD_CHUNK_FILE);
             }
-
         });
         return md5;
     }

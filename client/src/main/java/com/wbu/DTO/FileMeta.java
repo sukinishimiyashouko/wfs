@@ -15,6 +15,8 @@ import javax.validation.constraints.NotNull;
 @Data
 @Accessors(chain = true)
 public class FileMeta {
+    @NotBlank(message = "新的文件名不能为空")
+    private String newFileName;
     @NotNull(message = "文件大小不能为空")
     @Min(value = 0,message = "文件大小不得<0")
     private Long fileSize;

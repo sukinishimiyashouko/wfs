@@ -88,11 +88,9 @@ public class RequestUtil {
                         if (candidateAddress == null) {
                             candidateAddress = inetAddr;
                         }
-
                     }
                 }
             }
-
             // 如果出去loopback回环地之外无其它地址了，那就回退到原始方案吧
             return candidateAddress == null ? InetAddress.getLocalHost() : candidateAddress;
         } catch (Exception e) {

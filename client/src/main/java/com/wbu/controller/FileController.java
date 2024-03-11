@@ -5,6 +5,8 @@ import com.wbu.DO.MetaFile;
 import com.wbu.DTO.FileMeta;
 import com.wbu.VO.BucketVO;
 import com.wbu.VO.MetaFileVo;
+import com.wbu.annotation.RateLimiter;
+import com.wbu.enums.LimitType;
 import com.wbu.errors.BusinessException;
 import com.wbu.errors.EnumClientException;
 import com.wbu.response.CommonResponse;
@@ -19,6 +21,8 @@ import javax.validation.Valid;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
+import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
@@ -40,13 +44,15 @@ public class FileController {
     /**
      * 小文件上传
      * @param bucketName 存储桶名称
+     * @param newFileName 新文件名
      * @param file 文件
      * @return 文件路径
      */
     @PostMapping("/upload")
     public CommonResponse<String> upload(@RequestParam("bucket") @NotBlank(message = "存储桶名不得为空") String bucketName,
+                                         @RequestParam("newFileName") @NotBlank(message = "新文件名不能为空") String newFileName,
                                          @RequestParam("file") @NotNull(message = "文件不得为空") MultipartFile file){
-        String fileUrl = fileService.upload(bucketName,file);
+        String fileUrl = fileService.upload(bucketName,newFileName,file);
         return CommonResponse.success(fileUrl);
     }
 
@@ -89,17 +95,18 @@ public class FileController {
      * @param fileName 文件名
      * @return
      */
+    @RateLimiter(key = "limit-download",seconds = 10,count = 1,message = "请稍后重试",limitType = LimitType.IP)
     @GetMapping("{bucketName}/{fileName}")
     public void download(HttpServletResponse response
                                     ,@PathVariable @NotBlank(message = "存储桶名不得为空") String bucketName
-                                    ,@PathVariable @NotBlank(message = "文件名不得为空") String fileName){
+                                    ,@PathVariable @NotBlank(message = "文件名不得为空") String fileName) throws UnsupportedEncodingException {
         MetaFile metaFile = fileService.getMeta(bucketName,fileName);
 
         response.reset();
         response.setContentType("application/octet-stream");
         response.setCharacterEncoding("UTF-8");
         response.setContentLength(metaFile.getFileSize().intValue());
-        response.setHeader("Content-DisPosition","attachment;fileName="+metaFile.getFileName()+"."+metaFile.getExtension());
+        response.setHeader("Content-DisPosition","attachment;fileName="+new String((metaFile.getFileName()+"."+metaFile.getExtension()).getBytes(StandardCharsets.UTF_8),"ISO-8859-1"));
 
         //下载每一个分片信息
         for (FileChunkMeta chunk : metaFile.getChunks()) {

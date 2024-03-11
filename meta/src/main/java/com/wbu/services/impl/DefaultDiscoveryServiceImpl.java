@@ -25,7 +25,7 @@ public class DefaultDiscoveryServiceImpl implements DiscoveryService {
     private final Map<String, List<ServerInfo>> SERVER_MAP = new ConcurrentHashMap<>();
     @Override
     public void register(ServerInfoDTO serverInfo) {
-        //判断 map 里面是否存在server信息
+        //获取 SERVER_MAP 里面是否存在server信息
         List<ServerInfo> serverInfos = SERVER_MAP.getOrDefault(serverInfo.getServiceId(), new ArrayList<>());
         //如果不存在，直接放入
         ServerInfo info = new ServerInfo();
@@ -50,16 +50,16 @@ public class DefaultDiscoveryServiceImpl implements DiscoveryService {
     public void heartbeat(ServerInfoDTO serverInfo) {
         //获取服务信息
         List<ServerInfo> serverInfoList = SERVER_MAP.getOrDefault(serverInfo.getServiceId(), new ArrayList<>());
-        boolean exists = false;
+        boolean exist = false;
         for (ServerInfo server : serverInfoList) {
             if (server.getHost().equals(serverInfo.getHost()) &&
                     server.getPort().equals(serverInfo.getPort())) {
                 server.setAlive(true);
                 server.setPreTimeStamp(System.currentTimeMillis());
-                exists = true;
+                exist = true;
             }
         }
-        if (!exists) {
+        if (!exist) {
             register(serverInfo);
         }
     }
@@ -71,7 +71,7 @@ public class DefaultDiscoveryServiceImpl implements DiscoveryService {
     private void checkAlive() {
         SERVER_MAP.forEach((serviceId, serverList) -> {
             serverList = serverList.stream().filter(server -> {
-                Long preTimeStamp = server.getPreTimeStamp() / 1000;
+                long preTimeStamp = server.getPreTimeStamp() / 1000;
                 long current = System.currentTimeMillis() / 1000;
                 if (current - preTimeStamp > 30) {
                     server.setAlive(false);

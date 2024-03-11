@@ -1,7 +1,10 @@
 package com.wbu;
 
+import com.wbu.services.FileService;
+import com.wbu.utils.ChunkAddressBuilder;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.ConfigurableApplicationContext;
 
 /**
  * @auther 11852
@@ -10,6 +13,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @SpringBootApplication
 public class Client {
     public static void main(String[] args) {
-        SpringApplication.run(Client.class,args);
+        ConfigurableApplicationContext ioc = SpringApplication.run(Client.class, args);
+//        System.out.println(ioc.getBean("httpChunkAddressBuilder",ChunkAddressBuilder.class));
     }
+
 }

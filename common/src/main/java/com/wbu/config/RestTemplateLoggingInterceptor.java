@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 
 /**
  * @auther 11852
@@ -46,7 +47,7 @@ public class RestTemplateLoggingInterceptor implements ClientHttpRequestIntercep
         return requestInfo.setUrl(httpRequest.getURI().toString())
                 .setMethod(httpRequest.getMethodValue())
                 .setHeaders(httpRequest.getHeaders().toString())
-                .setBody(body.toString());
+                .setBody(Arrays.toString(body));
     }
 
     private ResponseInfo extractResponse(ClientHttpResponse response) throws IOException {

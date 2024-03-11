@@ -72,15 +72,12 @@ public class MetaServiceImpl implements MetaService {
         String fileName = fileNameGenerator.generate(fileMeta, clientIpAddr);
         //用fileName当做MongoDB中文档ID确保唯一性
         MetaFile metaFile = mongoTemplate.findById(fileName, MetaFile.class);
-
         if (Objects.nonNull(metaFile)){
             return metaFile;
         }
-
         metaFile = new MetaFile();
         //获取分片个数
         int totalChunk = (int) Math.ceil(fileSize * 1.0 / chunkSize);
-
         List<FileChunkMeta> chunks = createChunks(fileSize, extension, bucketName, chunkSize, fileName, totalChunk);
 
         metaFile.setFileName(fileName)
@@ -123,7 +120,7 @@ public class MetaServiceImpl implements MetaService {
         for (int i = 0; i < totalChunk; i++) {
             //记住当前分片大小
             long currentChunkSize = chunkSize;
-            if (fileSize <(long)(i+1)* chunkSize){
+            if (fileSize< (long) (i + 1) *chunkSize){
                 currentChunkSize = fileSize - (long) i * chunkSize;
             }
             //选择机器
@@ -224,13 +221,16 @@ public class MetaServiceImpl implements MetaService {
                 //并行筛选
                 .parallel()
                 .map(fileChunkMetas -> fileChunkMetas.stream()
+                        //改变元素的状态 并非最终操作
                         .peek(c -> {
                             String address = c.getAddress();
                             if (!addressSet.contains(address)) {
                                 c.setWeight(c.getWeight() > 0 ? c.getWeight() - 1 : 0);
                             }
                         })
+                        //取出权重最大的那个FileChunkMeta
                         .max(Comparator.comparing(FileChunkMeta::getWeight))
+                        //处理空值的情况
                         .orElse(new FileChunkMeta())
                 )
                 .filter(e -> e.getWeight() > 0)
@@ -257,6 +257,7 @@ public class MetaServiceImpl implements MetaService {
     @Override
     public List<FileChunkMeta> chunkInfo(String bucketName, String fileName, Integer chunkNo) {
         if (fileName.contains(".")) {
+            // TODO: 2024/2/16  万一文件名有多个'.'
             fileName = fileName.split("\\.")[0];
         }
         MetaFile metaFile = mongoTemplate.findById(fileName, MetaFile.class);

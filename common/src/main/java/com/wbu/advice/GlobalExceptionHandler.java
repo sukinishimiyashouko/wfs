@@ -16,7 +16,6 @@ import org.springframework.web.bind.annotation.ResponseStatus;
  * @auther 11852
  * @create 2023/7/31
  */
-@Data
 @Slf4j
 @ControllerAdvice
 public class GlobalExceptionHandler {
@@ -37,7 +36,7 @@ public class GlobalExceptionHandler {
     public Object handleMethodArgumentNotValidException(MethodArgumentNotValidException e){
         FieldError fieldError = e.getBindingResult().getFieldError();
         assert fieldError != null;
-        return new CommonResponse(500,fieldError.getDefaultMessage(),null);
+        return new CommonResponse<>(500,fieldError.getDefaultMessage(),null);
     }
 
     @ExceptionHandler(RuntimeException.class)

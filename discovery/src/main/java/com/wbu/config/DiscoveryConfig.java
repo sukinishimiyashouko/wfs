@@ -21,17 +21,17 @@ import java.util.concurrent.ThreadPoolExecutor;
 @ConfigurationProperties("discovery")
 @Slf4j
 public class DiscoveryConfig {
+    //meta服务--------------localhost
     private String serverHost;
     //服务id
     private String serviceId;
+    //meta服务--------------port
     private Integer serverPort;
     //协议
     private String schema;
 
     public String getServerAddress(){
-        String formatted = "%s:%s".formatted(serverHost, serverPort);
-        log.info(formatted);
-        return formatted;
+        return "%s:%s".formatted(serverHost,serverPort);
     }
 
     /**

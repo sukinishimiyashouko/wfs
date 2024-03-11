@@ -13,4 +13,7 @@ swagger:
     base-package: com.wbu.controller
 
 chunk:
+#  windows
   work-space: D:/MyDataArea/wfs
+#  linux
+#  work-space: /usr/local/server1

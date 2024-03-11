@@ -9,11 +9,17 @@ client:
   meta-server-port: 8080
   meta-server-host: http://127.0.0.1
 
+rate-limit:
+  max-request-count: 10
+
 spring:
   servlet:
     multipart:
       max-file-size: 1GB
       max-request-size: 1GB
+  redis:
+    host: 127.0.0.1
+    port: 6379
 discovery:
   service-id: chunk-client
   server-host: http://127.0.0.1

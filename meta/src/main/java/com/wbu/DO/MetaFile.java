@@ -26,6 +26,7 @@ public class MetaFile {
     private String bucketName;
     //分片总数
     private Integer totalChunk;
+    //是否上传完成
     private Boolean completed;
     //文件总分片
     private List<FileChunkMeta> chunks;

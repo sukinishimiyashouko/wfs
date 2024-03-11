@@ -15,7 +15,6 @@ import java.util.Objects;
  * @auther 11852
  * @create 2023/8/2
  */
-@Slf4j
 @Component
 public class ChunkAddressStrategy {
     private final Map<String,ChunkAddressBuilder> builderMap;
@@ -26,7 +25,6 @@ public class ChunkAddressStrategy {
     }
 
     public String get(FileChunkMeta chunkMeta){
-        log.info("{}",builderMap);
         String schema = chunkMeta.getSchema();
         ChunkAddressBuilder chunkAddressBuilder = builderMap.get(schema);
         if (Objects.isNull(chunkAddressBuilder)){

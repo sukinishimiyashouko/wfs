@@ -14,7 +14,7 @@ import java.util.List;
  * @create 2023/8/1
  */
 public interface FileService {
-    String upload(String bucketName, MultipartFile file);
+    String upload(String bucketName,String newFileName, MultipartFile file);
 
     MetaFile getMeta(String bucketName, String fileName);
 

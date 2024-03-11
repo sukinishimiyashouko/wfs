@@ -17,8 +17,8 @@ import java.util.List;
 public class DefaultServerSelector implements ServerSelector {
     @Override
     public List<ServerInfo> select(List<ServerInfo> aliveServers, int count) {
-        log.info("存活的chunk-server服务器数量为--------------------------------"+ aliveServers.size());
-        log.info("分片数量为------------------------------"+ count);
+//        log.info("存活的chunk-server服务器数量为--------------------------------"+ aliveServers.size());
+//        log.info("分片数量为------------------------------"+ count);
         if (aliveServers.size()<count){
             throw new BusinessException("存活的服务数量 < 分片存储数量",EnumMetaException.NOT_ENOUGH_CHUNK_SERVER);
         }

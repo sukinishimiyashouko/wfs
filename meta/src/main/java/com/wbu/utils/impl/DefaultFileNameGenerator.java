@@ -20,7 +20,7 @@ public class DefaultFileNameGenerator implements FileNameGenerator {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHH");
         String time = now.format(formatter);
 
-        return "f%s%s".formatted(time,md5(fileMeta,(String) args[0]));
+        return "%s_%s%s".formatted(fileMeta.getNewFileName(),time,md5(fileMeta,(String) args[0]));
     }
 
     private String md5(FileMeta fileMeta,String address){

@@ -1,6 +1,7 @@
 package com.wbu.errors;
 
 import com.wbu.interfaces.IResponse;
+import com.wbu.response.StandardResponse;
 import lombok.Data;
 
 import java.text.MessageFormat;
@@ -20,7 +21,7 @@ public class BusinessException extends RuntimeException implements IResponse {
         super(message == null ? response.getMessage() : message);
         this.code = response.getCode();
         this.response = response;
-        this.message = MessageFormat.format(response.getMessage(),args);
+        this.message = MessageFormat.format(super.getMessage(),args);
     }
 
     public BusinessException(IResponse response){
@@ -28,6 +29,9 @@ public class BusinessException extends RuntimeException implements IResponse {
     }
     public BusinessException(String message,IResponse response){
         this(message,response,null);
+    }
+    public static BusinessException businessError(String message){
+        return new BusinessException(message, StandardResponse.ERROR);
     }
     @Override
     public int getCode() {
